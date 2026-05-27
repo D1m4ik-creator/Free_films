@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # База данных
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/moviedb"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:L7062006v.@localhost:5432/moviedb"
 
     # Kinopoisk API (kinopoisk.dev — бесплатный тариф)
     KINOPOISK_API_TOKEN: str = ""

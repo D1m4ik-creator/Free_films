@@ -54,23 +54,6 @@ uvicorn app.main:app --reload
 | `GET` | `/api/v1/movies/{id}/players` | Плееры фильма |
 | `POST` | `/api/v1/movies/{id}/players/refresh` | Обновить плееры |
 
-## Кэширование
-
-GET-эндпоинты фильмов кэшируются в памяти процесса приложения:
-
-- `GET /api/v1/movies`
-- `GET /api/v1/movies/{id}`
-- `GET /api/v1/movies/kp/{kp_id}`
-
-Кэш автоматически очищается после загрузки/обновления фильма и после обновления плееров. Настройки:
-
-```env
-MOVIE_CACHE_TTL_SECONDS=300
-MOVIE_CACHE_MAX_SIZE=512
-```
-
-`MOVIE_CACHE_TTL_SECONDS=0` отключает кэш.
-
 ## Пример: загрузить фильм
 
 ```bash

@@ -617,6 +617,7 @@ let state = {
   search: '', type: '', genre: '',
   heroMovie: null, currentMovie: null,
 };
+let syncPollTimer = null;
 
 // ── utils ────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -629,6 +630,16 @@ function toast(msg, isError=false){
 
 async function apiFetch(path){
   const r = await fetch(API + path);
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function apiPost(path, body={}){
+  const r = await fetch(API + path, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body),
+  });
   if(!r.ok) throw new Error(r.status);
   return r.json();
 }
@@ -660,10 +671,62 @@ async function loadMovies(){
     renderPagination();
     $('totalCount').textContent = `${data.total} позиций`;
     if(state.page===1 && data.items.length > 0) setHero(data.items[0]);
+    if(isCatalogRootView() && data.total < state.limit) ensureCatalogSync();
   }catch(e){
     grid.innerHTML = `<div class="empty-state"><div class="ico">🎬</div><p>Не удалось загрузить фильмы.<br>Убедитесь что API запущен.</p></div>`;
     toast('Ошибка подключения к API', true);
   }
+}
+
+function isCatalogRootView(){
+  return !state.search && !state.type && !state.genre && state.page === 1;
+}
+
+async function ensureCatalogSync(){
+  try{
+    let status = await apiFetch('/movies/sync/status');
+    if(!status.running && !status.started_at){
+      status = await apiPost('/movies/sync', {});
+    }
+    if(!status.running && status.started_at){
+      renderSyncState(status);
+      return;
+    }
+    watchCatalogSync(status);
+  }catch(e){
+    // Каталог останется в обычном empty state, если бэкенд без нового эндпоинта.
+  }
+}
+
+function renderSyncState(status){
+  const grid = $('moviesGrid');
+  if(!isCatalogRootView() || state.total > 0) return;
+  const page = status.current_page || 0;
+  const totalPages = status.total_pages || '...';
+  const saved = status.saved || 0;
+  const msg = status.running
+    ? `Загружаем каталог: страница ${page} из ${totalPages}, сохранено ${saved}`
+    : (status.last_error ? 'Не удалось синхронизировать каталог' : 'Каталог пока пуст');
+  grid.innerHTML = `<div class="empty-state"><div class="ico">🎬</div><p>${msg}</p></div>`;
+}
+
+function watchCatalogSync(initialStatus){
+  renderSyncState(initialStatus);
+  if(syncPollTimer) return;
+  syncPollTimer = setInterval(async ()=>{
+    try{
+      const status = await apiFetch('/movies/sync/status');
+      renderSyncState(status);
+      if((status.saved || 0) > 0 || !status.running){
+        clearInterval(syncPollTimer);
+        syncPollTimer = null;
+        loadMovies();
+      }
+    }catch(e){
+      clearInterval(syncPollTimer);
+      syncPollTimer = null;
+    }
+  }, 2500);
 }
 
 function renderGrid(){

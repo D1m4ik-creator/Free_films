@@ -80,3 +80,21 @@ class FetchRequest(BaseModel):
     """Запрос на скачивание данных + плееров по kp_id."""
     kinopoisk_id: int = Field(..., description="ID фильма на Кинопоиске")
     fetch_players: bool = Field(True, description="Искать плееры у агрегаторов")
+
+
+class CatalogSyncRequest(BaseModel):
+    """Запрос на фоновую синхронизацию каталога Kinopoisk."""
+    max_pages: int | None = Field(
+        None,
+        ge=0,
+        description="0 или null — все страницы; >0 — ограничить количество страниц",
+    )
+
+
+class AllohaDatasetSyncRequest(BaseModel):
+    """Запрос на фоновую синхронизацию публичного Alloha dataset."""
+    max_pages: int | None = Field(
+        None,
+        ge=0,
+        description="0 или null — все страницы; >0 — ограничить количество страниц",
+    )

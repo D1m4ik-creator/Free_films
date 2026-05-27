@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: moviedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d moviedb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── FastAPI backend ─────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:        postgresql+asyncpg://user:password@db:5432/moviedb
+      KINOPOISK_API_TOKEN: ${KINOPOISK_API_TOKEN:-}
+      KODIK_TOKEN:         ${KODIK_TOKEN:-}
+      ALLOHA_TOKEN:        ${ALLOHA_TOKEN:-}
+      VIDEOCDN_TOKEN:      ${VIDEOCDN_TOKEN:-}
+      BAZON_TOKEN:         ${BAZON_TOKEN:-}
+    expose:
+      - "8000"
+    volumes:
+      - .:/app
+
+  # ── Nginx + Frontend ────────────────────────────────────
+  frontend:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  pgdata:

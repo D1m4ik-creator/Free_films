@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.core.cache import movie_cache
 from app.schemas.movie import (
     AllohaDatasetSyncRequest,
@@ -29,11 +29,15 @@ router = APIRouter()
 
 # ─────────────────── helpers ───────────────────────────
 
-async def _refresh_players(movie_id: int, kp_id: int, db: AsyncSession):
-    """Фоновая задача: обновить список плееров."""
-    results = await fetch_all_players(kp_id)
-    for r in results:
-        await upsert_player(db, movie_id, r.source, r.iframe_url)
+async def _refresh_players(movie_id: int, kp_id: int):
+    """Фоновая задача: обновить список плееров с изолированной сессией."""
+    # Открываем независимую сессию БД специально для фона
+    async with AsyncSessionLocal() as db:
+        results = await fetch_all_players(kp_id)
+        for r in results:
+            await upsert_player(db, movie_id, r.source, r.iframe_url)
+        # Если upsert_player не делает commit внутри себя, обязательно добавляем:
+        await db.commit()
 
 
 async def _enrich_movie_if_needed(movie, db: AsyncSession):
@@ -73,7 +77,7 @@ async def fetch_and_save(
 
     if body.fetch_players:
         # Запускаем в фоне, чтобы не задерживать ответ
-        background_tasks.add_task(_refresh_players, movie.id, movie.kinopoisk_id, db)
+        background_tasks.add_task(_refresh_players, movie.id, movie.kinopoisk_id)
 
     await db.refresh(movie, ["players"])
     return movie

@@ -33,7 +33,7 @@ pip install -r requirements.txt
 docker-compose up db -d
 
 # Запустить API
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
 При старте API:
@@ -42,9 +42,9 @@ uvicorn app.main:app --reload --port 8000
 - ▶️ Каждый фильм уже содержит **готовый iframe плеера** для просмотра
 
 **Доступные URL:**
-- Swagger UI: http://localhost:8000/docs
+- Swagger UI: http://localhost:8001/docs
 - Фронтенд: http://localhost (если запущен Nginx через docker-compose)
-- API: http://localhost:8000/api/v1
+- API: http://localhost:8001/api/v1
 
 ### 2️⃣ Через Docker Compose
 

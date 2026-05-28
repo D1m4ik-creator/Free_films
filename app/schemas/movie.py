@@ -1,8 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel, HttpUrl, Field
 
-
 # ──────────────────────── Player ────────────────────────
+
 
 class PlayerBase(BaseModel):
     source: str
@@ -18,8 +18,11 @@ class PlayerOut(PlayerBase):
 
 # ──────────────────────── Movie ─────────────────────────
 
+
 class MovieBase(BaseModel):
     kinopoisk_id: int
+    imdb_id: str | None = None
+    tmdb_id: int | None = None
     title: str
     title_en: str | None = None
     type: str = "FILM"
@@ -44,7 +47,8 @@ class MovieCreate(MovieBase):
 
 class MovieOut(MovieBase):
     id: int
-    players: list[PlayerOut] = []
+    # players may come from DB (PlayerOut) or be generated on-the-fly (PlayerBase)
+    players: list[PlayerOut | PlayerBase] = []
     created_at: datetime
     updated_at: datetime
 
@@ -53,8 +57,11 @@ class MovieOut(MovieBase):
 
 class MovieListItem(BaseModel):
     """Облегчённая схема для списков (без players и persons)."""
+
     id: int
     kinopoisk_id: int
+    imdb_id: str | None = None
+    tmdb_id: int | None = None
     title: str
     title_en: str | None = None
     type: str
@@ -76,14 +83,17 @@ class PaginatedMovies(BaseModel):
 
 # ──────────────────────── Kinopoisk fetch ────────────────
 
+
 class FetchRequest(BaseModel):
     """Запрос на скачивание данных + плееров по kp_id."""
+
     kinopoisk_id: int = Field(..., description="ID фильма на Кинопоиске")
     fetch_players: bool = Field(True, description="Искать плееры у агрегаторов")
 
 
 class CatalogSyncRequest(BaseModel):
     """Запрос на фоновую синхронизацию каталога Kinopoisk."""
+
     max_pages: int | None = Field(
         None,
         ge=0,
@@ -93,6 +103,7 @@ class CatalogSyncRequest(BaseModel):
 
 class AllohaDatasetSyncRequest(BaseModel):
     """Запрос на фоновую синхронизацию публичного Alloha dataset."""
+
     max_pages: int | None = Field(
         None,
         ge=0,

@@ -48,7 +48,7 @@ services:
       VIDEOCDN_TOKEN:      ${VIDEOCDN_TOKEN:-}
       BAZON_TOKEN:         ${BAZON_TOKEN:-}
     expose:
-      - "8000"
+      - "8001"
     volumes:
       - .:/app
 

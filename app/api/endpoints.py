@@ -14,10 +14,15 @@ from app.schemas.movie import (
     PlayerOut,
 )
 from app.crud.movie import (
-    get_movie_by_id, get_movie_by_kp_id, get_movies, upsert_movie, upsert_player,
+    get_movie_by_id,
+    get_movie_by_kp_id,
+    get_movies,
+    upsert_movie,
+    upsert_player,
 )
 from app.api.kinopoisk import fetch_movie_meta
 from app.api.players import fetch_all_players
+from app.services.player_service import PlayerService
 from app.services.alloha_dataset_sync import (
     get_alloha_dataset_sync_status,
     sync_alloha_dataset,
@@ -28,6 +33,7 @@ router = APIRouter()
 
 
 # ─────────────────── helpers ───────────────────────────
+
 
 async def _refresh_players(movie_id: int, kp_id: int):
     """Фоновая задача: обновить список плееров с изолированной сессией."""
@@ -58,7 +64,10 @@ async def _enrich_movie_if_needed(movie, db: AsyncSession):
 
 # ─────────────────── Fetch & save ──────────────────────
 
-@router.post("/movies/fetch", response_model=MovieOut, summary="Загрузить фильм с Кинопоиска")
+
+@router.post(
+    "/movies/fetch", response_model=MovieOut, summary="Загрузить фильм с Кинопоиска"
+)
 async def fetch_and_save(
     body: FetchRequest,
     background_tasks: BackgroundTasks,
@@ -66,7 +75,7 @@ async def fetch_and_save(
 ):
     """
     1. Скачивает метаданные с kinopoiskapiunofficial.tech
-    2. Сохраняет / обновляет фильм в БД  
+    2. Сохраняет / обновляет фильм в БД
     3. Параллельно запрашивает все плееры-агрегаторы и сохраняет iframe-ссылки
     """
     meta = await fetch_movie_meta(body.kinopoisk_id)
@@ -127,6 +136,7 @@ async def start_alloha_dataset_sync(
 
 # ─────────────────── GET movies ────────────────────────
 
+
 @router.get("/movies", response_model=PaginatedMovies, summary="Список фильмов")
 async def list_movies(
     page: int = Query(1, ge=1),
@@ -154,7 +164,9 @@ async def list_movies(
     return payload
 
 
-@router.get("/movies/{movie_id}", response_model=MovieOut, summary="Фильм по внутреннему ID")
+@router.get(
+    "/movies/{movie_id}", response_model=MovieOut, summary="Фильм по внутреннему ID"
+)
 async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     cache_key = ("movies:detail:id", movie_id)
     cached = await movie_cache.get(cache_key)
@@ -165,7 +177,14 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
     if not movie:
         raise HTTPException(status_code=404, detail="Фильм не найден")
     movie = await _enrich_movie_if_needed(movie, db)
-    payload = MovieOut.model_validate(movie).model_dump(mode="json")
+    # Если в БД нет сохранённых плееров — сгенерируем fallback-плееры на основе imdb/tmdb
+    if movie.players and len(movie.players) > 0:
+        payload = MovieOut.model_validate(movie).model_dump(mode="json")
+    else:
+        generated = PlayerService.generate_movie_players(movie)
+        mdict = MovieOut.model_validate(movie).model_dump(mode="json")
+        mdict["players"] = generated
+        payload = mdict
     await movie_cache.set(cache_key, payload)
     return payload
 
@@ -185,12 +204,19 @@ async def get_movie_by_kinopoisk(kp_id: int, db: AsyncSession = Depends(get_db))
     if not movie:
         raise HTTPException(status_code=404, detail="Фильм не найден")
     movie = await _enrich_movie_if_needed(movie, db)
-    payload = MovieOut.model_validate(movie).model_dump(mode="json")
+    if movie.players and len(movie.players) > 0:
+        payload = MovieOut.model_validate(movie).model_dump(mode="json")
+    else:
+        generated = PlayerService.generate_movie_players(movie)
+        mdict = MovieOut.model_validate(movie).model_dump(mode="json")
+        mdict["players"] = generated
+        payload = mdict
     await movie_cache.set(cache_key, payload)
     return payload
 
 
 # ─────────────────── Players ───────────────────────────
+
 
 @router.post(
     "/movies/{movie_id}/players/refresh",
@@ -220,4 +246,7 @@ async def get_players(movie_id: int, db: AsyncSession = Depends(get_db)):
     movie = await get_movie_by_id(db, movie_id)
     if not movie:
         raise HTTPException(status_code=404, detail="Фильм не найден")
-    return movie.players
+    if movie.players and len(movie.players) > 0:
+        return movie.players
+    # Fallback: generate providers-based players (not persisted)
+    return PlayerService.generate_movie_players(movie)

@@ -1,7 +1,14 @@
 from datetime import datetime
 from sqlalchemy import (
-    Integer, String, Text, Float, DateTime, JSON,
-    ForeignKey, UniqueConstraint,
+    Integer,
+    String,
+    Text,
+    Float,
+    DateTime,
+    JSON,
+    ForeignKey,
+    UniqueConstraint,
+    Column,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,15 +17,19 @@ from app.core.database import Base
 
 class Movie(Base):
     """Фильм / сериал из Кинопоиска."""
+
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     kinopoisk_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
-
+    imdb_id = Column(String, nullable=True, index=True)
+    tmdb_id = Column(Integer, nullable=True, index=True)
     # Основные поля
     title: Mapped[str] = mapped_column(String(512))
     title_en: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    type: Mapped[str] = mapped_column(String(64))          # FILM | TV_SERIES | MINI_SERIES | TV_SHOW
+    type: Mapped[str] = mapped_column(
+        String(64)
+    )  # FILM | TV_SERIES | MINI_SERIES | TV_SHOW
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     short_description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -54,10 +65,9 @@ class Movie(Base):
 
 class Player(Base):
     """Iframe-ссылка одного из агрегаторов для конкретного фильма."""
+
     __tablename__ = "players"
-    __table_args__ = (
-        UniqueConstraint("movie_id", "source", name="uq_movie_source"),
-    )
+    __table_args__ = (UniqueConstraint("movie_id", "source", name="uq_movie_source"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"))

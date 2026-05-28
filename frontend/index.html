@@ -618,6 +618,8 @@ let state = {
   heroMovie: null, currentMovie: null,
 };
 let syncPollTimer = null;
+let allPlayers = [];
+let currentPlayerIndex = 0;
 
 // ── utils ────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -856,8 +858,11 @@ async function openModal(movieId){
 function renderPlayers(players){
   const tabs = $('playersTabs');
   const loading = $('playersLoading');
+  // Keep global players list for fallback rotation
+  allPlayers = players || [];
+  currentPlayerIndex = 0;
 
-  if(!players.length){
+  if(!allPlayers.length){
     loading.textContent = '⏳ Ищем доступные плееры...';
     return;
   }
@@ -870,8 +875,8 @@ function renderPlayers(players){
     bazon:'Bazon', iframe_video:'IframeVideo',
   };
 
-  tabs.innerHTML = players.map((p,i)=>
-    `<button class="player-tab ${i===0?'active':''}" data-url="${p.iframe_url}">
+  tabs.innerHTML = allPlayers.map((p,i)=>
+    `<button class="player-tab ${i===0?'active':''}" data-url="${p.iframe_url}" data-index="${i}">
       ${labels[p.source]||p.source}
     </button>`
   ).join('');
@@ -880,17 +885,35 @@ function renderPlayers(players){
     btn.addEventListener('click', ()=>{
       tabs.querySelectorAll('.player-tab').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
+      currentPlayerIndex = Number(btn.dataset.index || 0);
       setPlayerIframe(btn.dataset.url);
     });
   });
 
-  setPlayerIframe(players[0].iframe_url);
+  setPlayerIframe(allPlayers[0].iframe_url);
 }
 
 function setPlayerIframe(url){
   const wrap = $('playerContent');
   wrap.className = '';
-  wrap.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen"></iframe>`;
+  wrap.innerHTML = `<iframe src="${url}" allowfullscreen allow="autoplay; fullscreen" frameborder="0"></iframe>`;
+  const iframe = wrap.querySelector('iframe');
+  if(!iframe) return;
+  // Если iframe не грузится — пробуем следующий провайдер
+  iframe.onerror = () => {
+    currentPlayerIndex = (currentPlayerIndex || 0) + 1;
+    if(currentPlayerIndex < allPlayers.length){
+      const next = allPlayers[currentPlayerIndex].iframe_url;
+      // Обновляем активную вкладку
+      const tabs = $('playersTabs');
+      tabs.querySelectorAll('.player-tab').forEach(b=>{
+        b.classList.toggle('active', b.dataset.url === next);
+      });
+      setPlayerIframe(next);
+    }else{
+      wrap.innerHTML = '<div class="empty-state"><p>Все доступные плееры не откликнулись</p></div>';
+    }
+  };
 }
 
 async function fetchAndRefreshPlayers(movieId, existingPlayers){
